@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">	
-  <title>WC 2026 - My Picks</title>
+  <title>WC 2026 - My Picks/title>
   <link rel="stylesheet" href="../WC_common/styles.css">
 </head>
 
@@ -33,16 +33,22 @@ const SESSION_KEY = "session_" + GAME_ID;
 const userId = localStorage.getItem(SESSION_KEY);
 if (!userId) window.location.href = "index.html";
 
-function goToLanding() { window.location.href = "landing.html"; }
-function logout() {
-  localStorage.removeItem(SESSION_KEY);
-  window.location.href = "index.html";
+let pendingPickSave = Promise.resolve();
+
+async function saveAndGoToLanding() {
+  try {
+    await pendingPickSave;
+    window.location.href = "landing.html";
+  } catch (err) {
+    console.error("save before leaving failed:", err);
+    alert("Failed to save pick. Please try again.");
+  }
 }
 
 renderTopbar(
   "My Picks",
   `
-    <button onclick="goToLanding()">Save Picks</button>
+    <button onclick="saveAndGoToLanding()">Save Picks</button>
     <button onclick="logout()">Logout</button>
   `
 );
@@ -51,8 +57,13 @@ renderTopbar(
    PICK HANDLER
 ========================= */
 async function handlePick({ matchId, choice }) {
-  const idx = getMatchIndex(matches, matchId);
-  await saveUserPick(db, userId, idx, choice);
+  pendingPickSave = saveUserPick(db, userId, matchId, choice)
+    .catch(err => {
+      console.error("pick save error:", err);
+      throw err;
+    });
+
+  await pendingPickSave;
 }
 
 /* =========================
