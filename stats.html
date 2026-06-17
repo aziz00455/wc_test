@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">	
+<title>World Cup 2026 - Quick Stats</title>
+<link rel="stylesheet" href="../WC_common/styles.css">
+</head>
+
+<body>
+
+<div id="topbar"></div>
+
+<div class="page-wrap stats-page">
+
+<div class="center-note">
+  FIFA Rank: Official FIFA/Coca-Cola Rank, June 11, 2026<br>
+  Pick Score = Total Win Picks (x3) + Total Draw Picks (x1)
+</div>
+
+<div class="table-wrap">
+  <table>
+
+    <thead>
+      <tr>
+        <th class="sortable" data-key="rank">
+          <span class="two-line">FIFA<br>Rank</span><br>
+          <span class="arrow">⇅</span>
+        </th>
+
+        <th class="sortable" data-key="pickRank">
+          <span class="two-line">Pick<br>Rank</span><br>
+          <span class="arrow">⇅</span>
+        </th>
+
+        <th>Team</th>
+
+        <th class="highlight">Pts</th>
+        <th>W</th>
+        <th>D</th>
+        <th>L</th>
+
+        <th class="highlight">
+          <span class="two-line">Pick<br>Score</span>
+        </th>
+
+        <th>Win %</th>
+        <th>Draw %</th>
+        <th>Loss %</th>
+      </tr>
+    </thead>
+
+    <tbody id="statsBody">
+      <tr><td colspan="11">Loading...</td></tr>
+    </tbody>
+
+  </table>
+</div>
+
+</div>
+
+<script>
+window.global = window;
+window.process = window.process || { env: {} };
+</script>
+
+<script src="../WC_common/utils.js"></script>
+<script src="../WC_common/matches.js"></script>
+<script src="../WC_common/fetchScores.js"></script>
+<script src="../WC_common/teams.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="firebase.js"></script>
+
+<script>
+renderTopbar(
+  "World Cup 2026 - Quick Stats",
+  `<button onclick="goBack()">Return</button>`
+);
+
+function goBack(){ window.location.href="landing.html"; }
+
+/* ========================= */
+let sortKey="rank";
+let sortDir="asc";
+let masterRows=[];
+
+function initRows() {
+  const map = {};
+  Object.keys(teams).forEach(name => {
+    const t = teams[name];
+    map[name] = {
+      rank: t.rank || 999,
+      team: name,
+      w:0,d:0,l:0,
+      points:0,
+      pickWin:0,pickDraw:0,pickLoss:0,
+      pickScore:0,pickRank:0,
+      pickWinPct:0,pickDrawPct:0,pickLossPct:0
+    };
+  });
+  return map;
+}
+
+function applyResult(map,t1,t2,s1,s2){
+  if (s1==null||s2==null) return;
+  if(s1>s2){map[t1].w++;map[t2].l++;}
+  else if(s1<s2){map[t2].w++;map[t1].l++;}
+  else{map[t1].d++;map[t2].d++;}
+}
+
+async function load(){
+  const map = initRows();
+
+  const users = await db.collection("users").get();
+  users.forEach(doc=>{
+    const picks = doc.data().picks||[];
+    matches.forEach((m,i)=>{
+      const p = picks[i];
+      if(!p) return;
+      if(p===1){map[m.team1].pickWin++;map[m.team2].pickLoss++;}
+      if(p===2){map[m.team2].pickWin++;map[m.team1].pickLoss++;}
+      if(p===3){map[m.team1].pickDraw++;map[m.team2].pickDraw++;}
+    });
+  });
+
+  const { results } = await ensureScoresUpToDate();
+
+  matches.forEach(m=>{
+    const r = results[m.id];
+    if(!r) return;
+    applyResult(map,m.team1,m.team2,r.score1,r.score2);
+  });
+
+  masterRows = Object.values(map);
+
+  masterRows.forEach(r=>{
+    r.points = r.w*3 + r.d;
+    r.pickScore = r.pickWin*3 + r.pickDraw;
+
+    const t=r.pickWin+r.pickDraw+r.pickLoss;
+    if(t>0){
+      r.pickWinPct=r.pickWin/t*100;
+      r.pickDrawPct=r.pickDraw/t*100;
+      r.pickLossPct=r.pickLoss/t*100;
+    }
+  });
+
+  const sorted=[...masterRows].sort((a,b)=>b.pickScore-a.pickScore);
+  let rank=0,last=null;
+  sorted.forEach((r,i)=>{
+    if(r.pickScore!==last){rank=i+1;last=r.pickScore;}
+    r.pickRank=rank;
+  });
+
+  render();
+}
+
+function render(){
+  const rows=[...masterRows].sort((a,b)=>{
+    const v=a[sortKey]-b[sortKey];
+    return sortDir==="asc"?v:-v;
+  });
+
+  const tbody=document.getElementById("statsBody");
+  tbody.innerHTML="";
+
+  rows.forEach(r=>{
+    const tr=document.createElement("tr");
+
+    tr.innerHTML=`
+      <td>${r.rank}</td>
+      <td>${r.pickRank}</td>
+      <td>${r.team}</td>
+      <td class="highlight">${r.points}</td>
+      <td>${r.w}</td>
+      <td>${r.d}</td>
+      <td>${r.l}</td>
+      <td class="highlight">${r.pickScore}</td>
+      <td>${r.pickWinPct.toFixed(1)}%</td>
+      <td>${r.pickDrawPct.toFixed(1)}%</td>
+      <td>${r.pickLossPct.toFixed(1)}%</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  updateArrows();
+}
+
+function updateArrows(){
+  document.querySelectorAll(".sortable").forEach(th=>{
+    const key=th.dataset.key;
+    const arrow=th.querySelector(".arrow");
+    arrow.textContent=(key===sortKey)
+      ? (sortDir==="asc"?"▲":"▼")
+      : "⇅";
+  });
+}
+
+document.querySelectorAll(".sortable").forEach(th=>{
+  th.onclick=()=>{
+    const key=th.dataset.key;
+    sortKey===key ? sortDir=sortDir==="asc"?"desc":"asc" : (sortKey=key,sortDir="asc");
+    render();
+  };
+});
+
+load();
+</script>
+
+</body>
+</html>

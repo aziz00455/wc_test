@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">	
+  <title>World Cup-2026 My Predictions</title>
+  <link rel="stylesheet" href="../WC_common/styles.css">
+</head>
+
+<body class="game-page">
+
+<div id="topbar"></div>
+
+<!-- ✅ CRITICAL: SAME STRUCTURE AS LANDING -->
+<div class="page-wrap">
+  <div id="app"></div>
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="firebase.js"></script>
+
+<!-- shared -->
+<script src="../WC_common/utils.js"></script>
+<script src="../WC_common/matches.js"></script>
+<script src="../WC_common/teams.js"></script>
+<script src="../WC_common/fetchScores.js"></script>
+<script src="../WC_common/matchCards.js"></script>
+
+<script>
+const SESSION_KEY = "session_" + GAME_ID;
+const userId = localStorage.getItem(SESSION_KEY);
+if (!userId) window.location.href = "index.html";
+
+function goToLanding() { window.location.href = "landing.html"; }
+function logout() {
+  localStorage.removeItem(SESSION_KEY);
+  window.location.href = "index.html";
+}
+
+renderTopbar(
+  "World Cup 2026 - My Picks",
+  `
+    <button onclick="goToLanding()">Save Picks</button>
+    <button onclick="logout()">Logout</button>
+  `
+);
+
+/* =========================
+   PICK HANDLER
+========================= */
+async function handlePick({ matchId, choice }) {
+  const idx = getMatchIndex(matches, matchId);
+  await saveUserPick(db, userId, idx, choice);
+}
+
+/* =========================
+   RENDER MATCHES
+========================= */
+async function renderMatches(context) {
+  const app = document.getElementById("app");
+  app.innerHTML = "";
+
+  const grouped = groupMatches(matches);
+
+  let foundFirstUnlocked = false;
+
+  for (const date of Object.keys(grouped).sort()) {
+
+    const section = document.createElement("div");
+    section.className = "date-section";
+
+    const header = document.createElement("div");
+    header.className = "date-heading";
+    header.textContent = formatPrettyDate(date);
+    section.appendChild(header);
+
+    const matchesForDate = grouped[date]
+      .slice()
+      .sort((a, b) => new Date(a.kickoffUtc) - new Date(b.kickoffUtc));
+
+    for (const match of matchesForDate) {
+
+      const card = await createMatchCardFromDb({
+        matchId: match.id,
+        userId,
+        showActions: true,
+        onPick: handlePick,
+        context
+      });
+
+      // ✅ scroll anchor
+      if (!foundFirstUnlocked) {
+        const data = await buildMatchCardData(match, userId, context);
+        if (!data.locked) {
+          card.dataset.firstUnlocked = "true";
+          foundFirstUnlocked = true;
+        }
+      }
+
+      section.appendChild(card);
+    }
+
+    app.appendChild(section);
+  }
+
+  // ✅ scroll adjust
+  requestAnimationFrame(() => {
+    const el = document.querySelector('[data-first-unlocked="true"]');
+    if (!el) return;
+
+    el.scrollIntoView({ block: "start" });
+
+    window.scrollBy({
+      top: -300,
+      behavior: "smooth"
+    });
+  });
+}
+
+/* =========================
+   LOAD + REFRESH
+========================= */
+let context = null;
+
+async function loadInitial() {
+  const { results, serverNow } = await ensureScoresUpToDate();
+
+  const usersSnap = await db.collection("users").get();
+  const saved = await loadUserPredictions(db, userId);
+
+  context = {
+    results,
+    serverNow,
+    usersSnap,
+    saved
+  };
+
+  renderMatches(context);
+}
+
+async function refreshScores() {
+  const { results, serverNow } = await ensureScoresUpToDate();
+
+  context.results = results;
+  context.serverNow = serverNow;
+
+  renderMatches(context);
+}
+
+loadInitial();
+
+// ✅ same behavior as landing
+setInterval(refreshScores, 5 * 60 * 1000);
+
+</script>
+
+</body>
+</html>
