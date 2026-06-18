@@ -16,7 +16,7 @@
   <div id="matchesCompleted" class="matches-completed"></div>
 
   <div class="table-wrap">
-    <table>
+    <table class="landing-table">
       <thead>
         <tr>
           <th>Rank</th>
@@ -26,13 +26,18 @@
           <th>✅<br><span class="subtext">(+1 pt)</span></th>
           <th>❌<br><span class="subtext">(+0 pt)</span></th>
           <th>NP<br><span class="subtext">(-¼ pt)</span></th>
-          <th class="last5-col">Last 5</th> <!-- ✅ compact column -->
+          <th class="last5-col">Last 5</th>
         </tr>
       </thead>
       <tbody id="leaderboardBody"></tbody>
     </table>
   </div>
 </div>
+
+<script>
+window.global = window;
+window.process = window.process || { env: {} };
+</script>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -45,7 +50,6 @@
 <script src="../WC_common/matchCards.js"></script>
 
 <script>
-
 const SESSION_KEY = "session_" + GAME_ID;
 const userId = localStorage.getItem(SESSION_KEY);
 if (!userId) window.location.href = "index.html";
@@ -69,7 +73,7 @@ renderTopbar(
 );
 
 /* =========================
-   FEATURED MATCH (UNCHANGED)
+   FEATURED MATCH
 ========================= */
 let featuredInterval = null;
 
@@ -93,17 +97,43 @@ function renderFeaturedMatch(context) {
   for (const match of sorted) {
     const r = results[match.id];
 
-    const completed = r && (r.status === "complete" || r.status === "completed");
+    const completed = r && (
+      r.status === "complete" || r.status === "completed"
+    );
+
     const inPlay = r && r.status === "in_play";
 
-    if (completed || inPlay) activePool.push(match);
-    else futurePool.push(match);
+    if (completed || inPlay) {
+      activePool.push(match);
+    } else {
+      futurePool.push(match);
+    }
   }
 
   const recent = activePool.slice(-2);
   const upcoming = futurePool.slice(0, 2);
 
-  let featuredList = [...recent, ...upcoming];
+  const missing = 2 - upcoming.length;
+  const backfill = missing > 0
+    ? activePool.slice(
+        Math.max(0, activePool.length - 2 - missing),
+        Math.max(0, activePool.length - 2)
+      )
+    : [];
+
+  let featuredList = [...backfill, ...recent, ...upcoming];
+
+  const seenSet = new Set();
+  featuredList = featuredList.filter(m => {
+    if (!m || seenSet.has(m.id)) return false;
+    seenSet.add(m.id);
+    return true;
+  });
+
+  if (!featuredList.length) {
+    container.innerHTML = "";
+    return;
+  }
 
   let index = 0;
 
@@ -208,21 +238,52 @@ function buildStats(usersSnap, resultsMap) {
       if (predicted === outcome) {
         stats[doc.id].correct++;
         stats[doc.id].score++;
-      } else stats[doc.id].incorrect++;
+      } else {
+        stats[doc.id].incorrect++;
+      }
     }
   });
 
   return stats;
 }
 
+function buildLast5Html(picksArr, last5Matches, results) {
+  let html = "";
+
+  last5Matches.forEach(match => {
+    const idx = getMatchIndex(matches, match.id);
+    const pick = picksArr[idx];
+    const r = results[match.id];
+    if (!r) return;
+
+    const outcome =
+      r.score1 > r.score2 ? 1 :
+      r.score1 < r.score2 ? 2 : 3;
+
+    if (!pick) {
+      html += `<span class="np-icon">NP</span>`;
+    } else if (pick === outcome) {
+      html += `<span class="last5-mark">✅</span>`;
+    } else {
+      html += `<span class="last5-mark">❌</span>`;
+    }
+  });
+
+  return html;
+}
+
 /* =========================
    LOAD
 ========================= */
 let usersSnap = null;
+let saved = null;
 
 async function loadInitial() {
   const { results, serverNow } = await ensureScoresUpToDate();
+
   usersSnap = await db.collection("users").get();
+  saved = await loadUserPredictions(db, userId);
+
   renderPage(results, serverNow);
 }
 
@@ -232,7 +293,7 @@ async function refreshScores() {
 }
 
 function renderPage(results, serverNow) {
-  const context = { results, serverNow, usersSnap };
+  const context = { results, serverNow, usersSnap, saved };
 
   renderFeaturedMatch(context);
 
@@ -251,23 +312,7 @@ function renderPage(results, serverNow) {
   usersSnap.forEach(doc => {
     const s = stats[doc.id];
     const notPicked = completed - s.completed;
-
     const picksArr = doc.data().picks || new Array(73).fill(0);
-
-    let last5 = "";
-    last5Matches.forEach(match => {
-      const idx = getMatchIndex(matches, match.id);
-      const pick = picksArr[idx];
-      const r = results[match.id];
-
-      const outcome =
-        r.score1 > r.score2 ? 1 :
-        r.score1 < r.score2 ? 2 : 3;
-
-      if (!pick) last5 += "❌";
-      else if (pick === outcome) last5 += "✅";
-      else last5 += "❌";
-    });
 
     rows.push({
       uid: doc.id,
@@ -277,7 +322,7 @@ function renderPage(results, serverNow) {
       incorrect: s.incorrect,
       notPicked,
       score: Number((s.score + notPicked * -0.25).toFixed(2)),
-      last5
+      last5: buildLast5Html(picksArr, last5Matches, results)
     });
   });
 
@@ -287,7 +332,6 @@ function renderPage(results, serverNow) {
 
 loadInitial();
 setInterval(refreshScores, 5 * 60 * 1000);
-
 </script>
 
 </body>
