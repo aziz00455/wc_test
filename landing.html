@@ -26,7 +26,10 @@
           <th>✅<br><span class="subtext">(+1 pt)</span></th>
           <th>❌<br><span class="subtext">(+0 pt)</span></th>
           <th>NP<br><span class="subtext">(-¼ pt)</span></th>
-          <th class="last5-col">Last 5</th>
+          <th class="last5-col">
+            <span class="last5-full">Last 5</span>
+            <span class="last5-small">L5</span>
+          </th>
         </tr>
       </thead>
       <tbody id="leaderboardBody"></tbody>
@@ -39,10 +42,12 @@ window.global = window;
 window.process = window.process || { env: {} };
 </script>
 
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="firebase.js"></script>
 
+<!-- shared -->
 <script src="../WC_common/utils.js"></script>
 <script src="../WC_common/matches.js"></script>
 <script src="../WC_common/teams.js"></script>
@@ -50,6 +55,7 @@ window.process = window.process || { env: {} };
 <script src="../WC_common/matchCards.js"></script>
 
 <script>
+
 const SESSION_KEY = "session_" + GAME_ID;
 const userId = localStorage.getItem(SESSION_KEY);
 if (!userId) window.location.href = "index.html";
@@ -71,6 +77,23 @@ renderTopbar(
     <button onclick="logout()">Logout</button>
   `
 );
+
+/* =========================
+   CHAT CHECK
+========================= */
+async function checkNewChat(userId) {
+  const [userDoc, metaDoc] = await Promise.all([
+    db.collection("users").doc(userId).get(),
+    db.collection("__meta").doc("chat").get()
+  ]);
+
+  const lastChatTime = userDoc.data()?.lastChatTime;
+  const lastMessageTime = metaDoc.data()?.lastMessageTime;
+
+  if (!lastChatTime || !lastMessageTime) return false;
+
+  return lastMessageTime.toDate() > lastChatTime.toDate();
+}
 
 /* =========================
    FEATURED MATCH
@@ -115,10 +138,7 @@ function renderFeaturedMatch(context) {
 
   const missing = 2 - upcoming.length;
   const backfill = missing > 0
-    ? activePool.slice(
-        Math.max(0, activePool.length - 2 - missing),
-        Math.max(0, activePool.length - 2)
-      )
+    ? activePool.slice(Math.max(0, activePool.length - 2 - missing), Math.max(0, activePool.length - 2))
     : [];
 
   let featuredList = [...backfill, ...recent, ...upcoming];
@@ -146,6 +166,7 @@ function renderFeaturedMatch(context) {
     });
 
     container.innerHTML = "";
+    card.classList.add("fade");
     container.appendChild(card);
   }
 
@@ -157,6 +178,31 @@ function renderFeaturedMatch(context) {
     index = (index + 1) % featuredList.length;
     renderCard(featuredList[index]);
   }, 6000);
+}
+
+/* =========================
+   LAST 5
+========================= */
+function buildLast5(picksArr, last5Matches, results) {
+  let html = "";
+
+  last5Matches.forEach(match => {
+    const idx = getMatchIndex(matches, match.id);
+    const pick = picksArr[idx];
+    const r = results[match.id];
+
+    if (!r) return;
+
+    const outcome =
+      r.score1 > r.score2 ? 1 :
+      r.score1 < r.score2 ? 2 : 3;
+
+    if (!pick) html += '<span class="n-icon">N</span>';
+    else if (pick === outcome) html += '<span class="last5-mark">✅</span>';
+    else html += '<span class="last5-mark">❌</span>';
+  });
+
+  return html;
 }
 
 /* =========================
@@ -179,9 +225,13 @@ function render(rows) {
 
     if (r.uid === userId) tr.classList.add("my-row");
 
+    const nameLink = r.uid === userId
+      ? `<a href="game.html">${r.name}</a>`
+      : `<a href="showpick.html?uid=${r.uid}&name=${encodeURIComponent(r.name)}">${r.name}</a>`;
+
     tr.innerHTML = `
       <td>${rank}</td>
-      <td>${r.name}</td>
+      <td>${nameLink}</td>
       <td>${r.picks}</td>
       <td class="score-col">${r.score}</td>
       <td>${r.correct}</td>
@@ -247,31 +297,6 @@ function buildStats(usersSnap, resultsMap) {
   return stats;
 }
 
-function buildLast5Html(picksArr, last5Matches, results) {
-  let html = "";
-
-  last5Matches.forEach(match => {
-    const idx = getMatchIndex(matches, match.id);
-    const pick = picksArr[idx];
-    const r = results[match.id];
-    if (!r) return;
-
-    const outcome =
-      r.score1 > r.score2 ? 1 :
-      r.score1 < r.score2 ? 2 : 3;
-
-    if (!pick) {
-      html += `<span class="np-icon">NP</span>`;
-    } else if (pick === outcome) {
-      html += `<span class="last5-mark">✅</span>`;
-    } else {
-      html += `<span class="last5-mark">❌</span>`;
-    }
-  });
-
-  return html;
-}
-
 /* =========================
    LOAD
 ========================= */
@@ -279,6 +304,10 @@ let usersSnap = null;
 let saved = null;
 
 async function loadInitial() {
+  if (await checkNewChat(userId)) {
+    document.getElementById("chatBtn")?.classList.add("blink");
+  }
+
   const { results, serverNow } = await ensureScoresUpToDate();
 
   usersSnap = await db.collection("users").get();
@@ -307,6 +336,9 @@ function renderPage(results, serverNow) {
     })
     .slice(-5);
 
+  document.getElementById("matchesCompleted").textContent =
+    `Matches Completed: ${completed} / 72`;
+
   const rows = [];
 
   usersSnap.forEach(doc => {
@@ -322,7 +354,7 @@ function renderPage(results, serverNow) {
       incorrect: s.incorrect,
       notPicked,
       score: Number((s.score + notPicked * -0.25).toFixed(2)),
-      last5: buildLast5Html(picksArr, last5Matches, results)
+      last5: buildLast5(picksArr, last5Matches, results)
     });
   });
 
@@ -332,6 +364,7 @@ function renderPage(results, serverNow) {
 
 loadInitial();
 setInterval(refreshScores, 5 * 60 * 1000);
+
 </script>
 
 </body>
