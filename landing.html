@@ -39,10 +39,12 @@ window.global = window;
 window.process = window.process || { env: {} };
 </script>
 
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="firebase.js"></script>
 
+<!-- shared -->
 <script src="../WC_common/utils.js"></script>
 <script src="../WC_common/matches.js"></script>
 <script src="../WC_common/teams.js"></script>
@@ -50,7 +52,6 @@ window.process = window.process || { env: {} };
 <script src="../WC_common/matchCards.js"></script>
 
 <script>
-
 const SESSION_KEY = "session_" + GAME_ID;
 const userId = localStorage.getItem(SESSION_KEY);
 if (!userId) window.location.href = "index.html";
@@ -133,7 +134,10 @@ function renderFeaturedMatch(context) {
 
   const missing = 2 - upcoming.length;
   const backfill = missing > 0
-    ? activePool.slice(Math.max(0, activePool.length - 2 - missing), Math.max(0, activePool.length - 2))
+    ? activePool.slice(
+        Math.max(0, activePool.length - 2 - missing),
+        Math.max(0, activePool.length - 2)
+      )
     : [];
 
   let featuredList = [...backfill, ...recent, ...upcoming];
@@ -193,11 +197,11 @@ function buildLast5(picksArr, last5Matches, results) {
       r.score1 < r.score2 ? 2 : 3;
 
     if (!pick) {
-      html += '<span class="n-icon">N</span>';
+      html += `<span class="n-icon">N</span>`;
     } else if (pick === outcome) {
-      html += '<span class="last5-mark">✅</span>';
+      html += `<span class="last5-mark">✅</span>`;
     } else {
-      html += '<span class="last5-mark">❌</span>';
+      html += `<span class="last5-mark">❌</span>`;
     }
   });
 
@@ -209,6 +213,7 @@ function buildLast5(picksArr, last5Matches, results) {
 ========================= */
 function render(rows) {
   const tbody = document.getElementById("leaderboardBody");
+  if (!tbody) return;
   tbody.innerHTML = "";
 
   let rank = 0;
@@ -333,6 +338,7 @@ function renderPage(results, serverNow) {
       const r = results[m.id];
       return r && (r.status === "complete" || r.status === "completed");
     })
+    .sort((a, b) => new Date(a.kickoffUtc) - new Date(b.kickoffUtc))
     .slice(-5);
 
   document.getElementById("matchesCompleted").textContent =
@@ -363,9 +369,7 @@ function renderPage(results, serverNow) {
 
 loadInitial();
 setInterval(refreshScores, 5 * 60 * 1000);
-
 </script>
 
 </body>
 </html>
-``
