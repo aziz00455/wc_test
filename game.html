@@ -57,6 +57,11 @@ renderTopbar(
    PICK HANDLER
 ========================= */
 async function handlePick({ matchId, choice }) {
+  // keep in-memory state in sync for future renders
+  if (context && context.saved) {
+    context.saved[matchId] = choice;
+  }
+
   pendingPickSave = saveUserPick(db, userId, matchId, choice)
     .catch(err => {
       console.error("pick save error:", err);
