@@ -141,7 +141,7 @@ async function renderMatches(context) {
 let context = null;
 
 async function loadInitial() {
-  const { results, serverNow } = await ensureScoresUpToDate();
+  const { results, serverNow } = await getResultsWithServerTime();
 
   const usersSnap = await db.collection("users").get();
   const saved = await loadUserPredictions(db, userId);
@@ -157,7 +157,7 @@ async function loadInitial() {
 }
 
 async function refreshScores() {
-  const { results, serverNow } = await ensureScoresUpToDate();
+  const { results, serverNow } = await getResultsWithServerTime();
 
   context.results = results;
   context.serverNow = serverNow;
