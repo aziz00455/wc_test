@@ -26,10 +26,7 @@
           <th>✅<br><span class="subtext">(+1 pt)</span></th>
           <th>❌<br><span class="subtext">(+0 pt)</span></th>
           <th>NP<br><span class="subtext">(-¼ pt)</span></th>
-          <th class="last5-col">
-            <span class="last5-full">Last 5</span>
-            <span class="last5-small">L5</span>
-          </th>
+          <th class="last5-col">Last 5</th>
         </tr>
       </thead>
       <tbody id="leaderboardBody"></tbody>
@@ -42,12 +39,10 @@ window.global = window;
 window.process = window.process || { env: {} };
 </script>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="firebase.js"></script>
 
-<!-- shared -->
 <script src="../WC_common/utils.js"></script>
 <script src="../WC_common/matches.js"></script>
 <script src="../WC_common/teams.js"></script>
@@ -181,7 +176,7 @@ function renderFeaturedMatch(context) {
 }
 
 /* =========================
-   LAST 5
+   LAST 5 HELPER
 ========================= */
 function buildLast5(picksArr, last5Matches, results) {
   let html = "";
@@ -197,9 +192,13 @@ function buildLast5(picksArr, last5Matches, results) {
       r.score1 > r.score2 ? 1 :
       r.score1 < r.score2 ? 2 : 3;
 
-    if (!pick) html += '<span class="n-icon">N</span>';
-    else if (pick === outcome) html += '<span class="last5-mark">✅</span>';
-    else html += '<span class="last5-mark">❌</span>';
+    if (!pick) {
+      html += '<span class="n-icon">N</span>';
+    } else if (pick === outcome) {
+      html += '<span class="last5-mark">✅</span>';
+    } else {
+      html += '<span class="last5-mark">❌</span>';
+    }
   });
 
   return html;
@@ -369,3 +368,4 @@ setInterval(refreshScores, 5 * 60 * 1000);
 
 </body>
 </html>
+``
