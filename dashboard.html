@@ -3,13 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <title>WC 2026 Dashboard</title>
+
   <style>
     * { box-sizing: border-box; }
+
+    /* ✅ FIX: LOCK TRUE FHD CANVAS */
     html, body {
       margin: 0;
       padding: 0;
-      width: 100%;
-      height: 100%;
+      width: 1400px;
+      height: 680px;
       overflow: hidden;
       background: #f4f4f4;
       font-family: Arial, sans-serif;
@@ -22,19 +25,18 @@
       justify-content: stretch;
     }
 
+    /* ✅ REDUCE ACTIVE AREA PADDING */
     .dashboard {
-      width: 100vw;
-      height: 100vh;
-      padding: 10px;
+      width: 1400px;
+      height: 680px;
+      padding: 6px;
       display: grid;
       grid-template-columns: 60% 40%;
-
-  	  grid-template-rows: 42px 1fr;
-	  grid-template-areas:
-	    "summary summary"
-	    "left right";
-
-      gap: 10px;
+      grid-template-rows: 42px 1fr;
+      grid-template-areas:
+        "summary summary"
+        "left right";
+      gap: 6px;
       background: #f4f4f4;
     }
 
@@ -44,7 +46,7 @@
       min-height: 0;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
+      gap: 6px;
     }
 
     .table-card {
@@ -67,19 +69,19 @@
     thead th {
       background: #fafafa;
       border-bottom: 1px solid #ddd;
-      font-size: 15px;
+      font-size: 10px;
       font-weight: 700;
       line-height: 1.1;
-      padding: 7px 4px;
+      padding: 3px 2px;
       text-align: center;
       color: #111;
     }
 
     tbody td {
       border-bottom: 1px solid #eee;
-      font-size: 15px;
+      font-size: 10px;
       line-height: 1.1;
-      padding: 0 4px;
+      padding: 0 2px;
       text-align: center;
       vertical-align: middle;
       color: #222;
@@ -87,7 +89,7 @@
 
     tbody tr:last-child td { border-bottom: none; }
 
-    .rank-col { width: 46px; }
+    .rank-col { width: 38px; }
     .name-col {
       width: 34%;
       text-align: left;
@@ -96,15 +98,21 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .picks-col { width: 56px; }
+    .picks-col { width: 38px; }
     .score-col {
-      width: 68px;
+      width: 38px;
       background: #fff7cc;
-      font-weight: 700;
+      font-weight: normal;
     }
-    .small-col { width: 52px; }
+    .small-col { width: 24px; }
     .last5-col {
-      width: 112px;
+      width: 102px;
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    .nextmatch-col {
+      width: 26px;
       white-space: nowrap;
       text-align: center;
     }
@@ -116,25 +124,37 @@
       width: 14px;
       height: 14px;
       font-size: 11px;
-      line-height: 1;
       margin: 0 1px;
-      vertical-align: middle;
     }
 
     .n-icon {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 14px;
-      height: 14px;
-      font-size: 9px;
+      width: 13px;
+      height: 13px;
+      font-size: 11px;
       font-weight: 700;
-      line-height: 1;
-      margin: 0 1px;
-      vertical-align: middle;
       background: #111;
       color: #fff;
       border-radius: 2px;
+      margin: 0 1px;
+    }
+
+    .prediction-flag {
+      display: inline-block;
+      width: 16px;
+      height: 12px;
+      object-fit: cover;
+      vertical-align: middle;
+      border-radius: 1px;
+    }
+
+    .prediction-text {
+      display: inline-block;
+      font-weight: 700;
+      font-size: 10px;
+      line-height: 1;
     }
 
     .right-pane {
@@ -143,61 +163,48 @@
       min-height: 0;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
+      gap: 8px;
       overflow: hidden;
     }
 
     .day-column {
-      min-width: 0;
-      min-height: 0;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
     }
 
+    /* ✅ MAJOR FIX: RETURN HEIGHT BACK */
     .day-title {
-      flex: 0 0 auto;
       text-align: left;
-      font-size: 22px;
+      font-size: 16px;
       font-weight: 700;
-      color: #111;
-      margin: 0 0 8px 20px;
-      line-height: 4.0;
+      margin: 0 0 6px 20px;
+      line-height: 1.6;
     }
 
     .match-list {
       flex: 1;
-      min-height: 0;
       display: grid;
       grid-template-rows: repeat(6, minmax(0, 1fr));
-      gap: 15px;
-      overflow: hidden;
+      gap: 0px;
     }
 
     .match-slot {
       min-height: 0;
     }
 
-    /* Strong dashboard-specific overrides on shared match card output */
     .match-list .match-card {
-      width: 94% !important;
-      max-width: none !important;
+      width: 96% !important;
       margin: 0 auto !important;
-      padding: 7px 10px !important;
-      border-radius: 10px !important;
-      box-shadow: none !important;
-      background: #fff !important;
-      border: 1px solid #cfcfcf !important;
-      min-height: 0;
-      height: 60%;
+      padding: 8px 8px !important;
+      height: 75%;
       display: flex;
       flex-direction: column;
       justify-content: center;
     }
 
     .match-list .match-card.status-completed {
-      background: #f1f1f1 !important;
-      border: 2px solid #9d9d9d !important;
+      background: #fff59d !important;
+      border: 1px solid #f9a825 !important;
     }
 
     .match-list .match-card.status-live {
@@ -206,54 +213,33 @@
     }
 
     .match-list .match-card.status-upcoming {
-      background: #ffffff !important;
+      background: #fff !important;
       border: 1px solid #cfcfcf !important;
-    }
-
-    /* neutralize result-state styling from shared css */
-    .match-list .match-card.correct,
-    .match-list .match-card.incorrect,
-    .match-list .match-card.in-play {
-      background: inherit !important;
-      border-color: inherit !important;
     }
 
     .match-list .match-top {
       margin-bottom: 5px !important;
-      font-size: 14px !important;
+      font-size: 12px !important;
       font-weight: 700 !important;
     }
 
-    .match-list .match-top-right {
-      font-size: 13px !important;
-    }
-
     .match-list .teams-row {
-      margin-bottom: 4px !important;
-      padding: 0 2px !important;
-      column-gap: 3px !important;
+      margin-bottom: 6px !important;
     }
 
     .match-list .team,
     .match-list .score,
     .match-list .vs {
-      font-size: 14px !important;
+      font-size: 10px !important;
       font-weight: 700 !important;
-    }
-
-    .match-list .flag {
-      width: 18px !important;
-      height: 13px !important;
     }
 
     .match-list .actions { display: none !important; }
 
     .match-list .status-line {
       margin-top: 4px !important;
-      font-size: 12px !important;
-      line-height: 1.2 !important;
+      font-size: 10px !important;
       text-align: center !important;
-      min-height: 14px;
     }
 
     .summary-bar {
@@ -263,13 +249,30 @@
       justify-content: center;
       font-size: 18px;
       font-weight: 700;
-      color: #333;
     }
+		
+	.last-update {
+	  position: absolute;
+	  top: 4px;
+	  left: 8px;
+	  font-size: 10px;
+	  color: #666;
+	  font-weight: 500;
+	  pointer-events: none;
+	}
+
+	
   </style>
 </head>
+
 <body>
+
+  <div id="lastUpdate" class="last-update"></div>
+  
   <div class="dashboard">
+
     <div class="left-pane">
+
       <div class="table-card">
         <table>
           <thead>
@@ -278,10 +281,12 @@
               <th class="name-col">Name</th>
               <th class="picks-col">Picks</th>
               <th class="score-col">Score</th>
-              <th class="small-col">✅</th>
+              <th class="small-col" style="color:#2ecc71;">✅</th>
               <th class="small-col">❌</th>
               <th class="small-col">NP</th>
               <th class="last5-col">Last 5</th>
+              <th class="nextmatch-col" id="nextMatchHeader1">--</th>
+              <th class="nextmatch-col" id="nextMatchHeader2">--</th>
             </tr>
           </thead>
           <tbody id="leftTableBody"></tbody>
@@ -296,19 +301,23 @@
               <th class="name-col">Name</th>
               <th class="picks-col">Picks</th>
               <th class="score-col">Score</th>
-              <th class="small-col">✅</th>
+              <th class="small-col" style="color:#2ecc71;">✅</th>
               <th class="small-col">❌</th>
               <th class="small-col">NP</th>
               <th class="last5-col">Last 5</th>
+              <th class="nextmatch-col" id="nextMatchHeader1B">--</th>
+              <th class="nextmatch-col" id="nextMatchHeader2B">--</th>
             </tr>
           </thead>
           <tbody id="rightTableBody"></tbody>
         </table>
       </div>
+
     </div>
 
     <div id="matchesPane" class="right-pane"></div>
     <div id="summaryBar" class="summary-bar"></div>
+
   </div>
 
   <script>
@@ -327,7 +336,7 @@
   <script src="../WC_common/matchCards.js"></script>
 
   <script>
-    const DASHBOARD_REFRESH_MS = 60 * 1000;
+    const DASHBOARD_REFRESH_MS = 5 * 60 * 1000;
     let usersSnap = null;
 
     function buildLast5(picksArr, last5Matches, results) {
@@ -340,7 +349,7 @@
 
         const outcome = r.score1 > r.score2 ? 1 : r.score1 < r.score2 ? 2 : 3;
         if (!pick) html += '<span class="n-icon">N</span>';
-        else if (pick === outcome) html += '<span class="last5-mark">✅</span>';
+        else if (pick === outcome) html += '<span class="last5-mark" style="color:#2ecc71;">✅</span>';
         else html += '<span class="last5-mark">❌</span>';
       });
       return html;
@@ -386,6 +395,76 @@
       return stats;
     }
 
+    function getNextTwoMatches(results) {
+      return matches
+        .filter(m => {
+          const r = results[m.id];
+          return !(r && (r.status === 'complete' || r.status === 'completed'));
+        })
+        .sort((a, b) => {
+          const ra = results[a.id];
+          const rb = results[b.id];
+
+          const aInPlay = ra?.status === 'in_play';
+          const bInPlay = rb?.status === 'in_play';
+
+          if (aInPlay && !bInPlay) return -1;
+          if (!aInPlay && bInPlay) return 1;
+
+          return new Date(a.kickoffUtc) - new Date(b.kickoffUtc);
+        })
+        .slice(0, 2);
+    }
+
+    function updateNextMatchHeaders(nextMatches) {
+      const h1 = nextMatches[0]?.id || '--';
+      const h2 = nextMatches[1]?.id || '--';
+
+      const ids = ['nextMatchHeader1', 'nextMatchHeader1B'];
+      const ids2 = ['nextMatchHeader2', 'nextMatchHeader2B'];
+
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = h1;
+      });
+
+      ids2.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = h2;
+      });
+    }
+
+    function getTeamFlagMarkup(teamId) {
+      const team = getTeam(teamId) || {};
+
+      const src = team.flag || team.flagUrl || team.flagSrc || '';
+      if (src && (src.includes('/') || src.includes('.png') || src.includes('.jpg') || src.includes('.jpeg') || src.includes('.svg') || src.startsWith('http'))) {
+        return `<img class="prediction-flag" src="${src}" alt="">`;
+      }
+
+      const emoji = team.flagEmoji || team.emoji || '';
+      if (emoji) {
+        return `<span class="prediction-text">${emoji}</span>`;
+      }
+
+      const short = team.short || teamId || '';
+      return `<span class="prediction-text">${short}</span>`;
+    }
+
+    function buildNextPickCell(picksArr, match) {
+      if (!match) return '&nbsp;';
+
+      const idx = getMatchIndex(matches, match.id);
+      const pick = picksArr[idx];
+
+      if (!pick) return '<span class="n-icon">N</span>';
+      if (pick === 3) return '<span class="prediction-text">TIE</span>';
+      if (pick === 1) return getTeamFlagMarkup(match.team1);
+      if (pick === 2) return getTeamFlagMarkup(match.team2);
+
+      return '&nbsp;';
+    }
+
     function renderTables(rows) {
       const leftBody = document.getElementById('leftTableBody');
       const rightBody = document.getElementById('rightTableBody');
@@ -409,6 +488,8 @@
             <td class="small-col">&nbsp;</td>
             <td class="small-col">&nbsp;</td>
             <td class="last5-col">&nbsp;</td>
+            <td class="nextmatch-col">&nbsp;</td>
+            <td class="nextmatch-col">&nbsp;</td>
           `;
         } else {
           tr.innerHTML = `
@@ -420,6 +501,8 @@
             <td class="small-col">${r.incorrect}</td>
             <td class="small-col">${r.np}</td>
             <td class="last5-col">${r.last5}</td>
+            <td class="nextmatch-col">${r.next1}</td>
+            <td class="nextmatch-col">${r.next2}</td>
           `;
         }
         tbody.appendChild(tr);
@@ -503,7 +586,25 @@
               }
             });
 
-            // dashboard-specific visual/state behavior
+            const teamEls = card.querySelectorAll('.team');
+
+            teamEls.forEach((el, i) => {
+              const teamId = i === 0 ? match.team1 : match.team2;
+              const short = getTeam(teamId)?.short || teamId;
+
+              const flag = el.querySelector('.flag');
+
+              el.innerHTML = '';
+
+              if (i === 0) {
+                if (flag) el.appendChild(flag);
+                el.append(' ' + short);
+              } else {
+                el.append(short + ' ');
+                if (flag) el.appendChild(flag);
+              }
+            });
+
             card.classList.remove('correct', 'incorrect', 'in-play', 'status-completed', 'status-live', 'status-upcoming');
             card.querySelector('.actions')?.remove();
 
@@ -516,7 +617,6 @@
               card.classList.add('status-upcoming');
             }
 
-            // Always show aggregate picks on dashboard, including upcoming
             const statusLine = card.querySelector('.status-line');
             if (statusLine) {
               statusLine.innerHTML = buildPicksText(match.id);
@@ -533,11 +633,27 @@
       }
     }
 
-    async function load() {
+
+	function formatLastUpdate(serverNow) {
+	  const d = new Date(serverNow);
+
+	  const mm = String(d.getMonth() + 1).padStart(2, '0');
+	  const dd = String(d.getDate()).padStart(2, '0');
+
+	  const hours = d.getHours();
+	  const minutes = String(d.getMinutes()).padStart(2, '0');
+
+	  return `Last Update: ${mm}/${dd}, ${hours}:${minutes} EDT`;
+	}
+
+
+    async function load() {	
       const [{ results, serverNow }, snap] = await Promise.all([
         getResultsWithServerTime(),
         db.collection('users').get()
       ]);
+	  
+	  document.getElementById('lastUpdate').textContent = formatLastUpdate(serverNow);
 
       usersSnap = snap;
 
@@ -552,7 +668,10 @@
         .sort((a, b) => new Date(a.kickoffUtc) - new Date(b.kickoffUtc))
         .slice(-5);
 
-      document.getElementById('summaryBar').textContent = `Matches Completed: ${completed}/72`;
+      const nextMatches = getNextTwoMatches(results);
+      updateNextMatchHeaders(nextMatches);
+
+      document.getElementById('summaryBar').textContent = `Matches Completed: ${completed} of 72`;
 
       const rows = [];
       usersSnap.forEach(doc => {
@@ -567,7 +686,9 @@
           incorrect: s.incorrect,
           np: notPicked,
           score: Number((s.score + notPicked * -0.25).toFixed(2)),
-          last5: buildLast5(picksArr, last5Matches, results)
+          last5: buildLast5(picksArr, last5Matches, results),
+          next1: buildNextPickCell(picksArr, nextMatches[0]),
+          next2: buildNextPickCell(picksArr, nextMatches[1])
         });
       });
 
