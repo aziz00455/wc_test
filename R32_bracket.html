@@ -102,6 +102,25 @@
       return document.querySelector("#bracketApp .bracket-scroll");
     }
 
+    function getActiveLaneClasses() {
+      if (isMobileBracketView()) {
+        const mobileMap = [
+          ["lane-r32", "lane-r16"],
+          ["lane-r16", "lane-qf"],
+          ["lane-qf", "lane-sf"],
+          ["lane-sf", "lane-final"]
+        ];
+        return mobileMap[currentBracketWindow] || mobileMap[0];
+      }
+
+      const desktopMap = [
+        ["lane-r32", "lane-r16", "lane-qf"],
+        ["lane-r16", "lane-qf", "lane-sf"],
+        ["lane-qf", "lane-sf", "lane-final"]
+      ];
+      return desktopMap[currentBracketWindow] || desktopMap[0];
+    }
+
     function clampBracketWindow(value) {
       return Math.max(0, Math.min(getMaxBracketWindow(), value));
     }
@@ -117,9 +136,30 @@
       document.body.classList.toggle("bracket-mobile-view", isMobileBracketView());
     }
 
+    function updateBracketPaneHeight() {
+      const scrollEl = getBracketScrollEl();
+      if (!scrollEl) return;
+
+      const activeLaneClasses = getActiveLaneClasses();
+      let maxHeight = 0;
+
+      activeLaneClasses.forEach(function (cls) {
+        const laneEl = scrollEl.querySelector('.' + cls);
+        if (!laneEl) return;
+        maxHeight = Math.max(maxHeight, laneEl.scrollHeight);
+      });
+
+      if (maxHeight > 0) {
+        scrollEl.style.height = maxHeight + 'px';
+      } else {
+        scrollEl.style.height = '';
+      }
+    }
+
     function setBracketWindow(index) {
       currentBracketWindow = clampBracketWindow(index);
       applyBracketWindowClass();
+      requestAnimationFrame(updateBracketPaneHeight);
     }
 
     function syncBracketWindowFromScroll() {
@@ -205,7 +245,15 @@
         behavior: "smooth"
       });
 
-      setTimeout(updateBracketNavButtons, 350);
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+
+      setTimeout(function () {
+        updateBracketNavButtons();
+        updateBracketPaneHeight();
+      }, 350);
     }
 
     function syncBracketToViewport() {
@@ -218,6 +266,7 @@
       }
 
       updateBracketNavButtons();
+      requestAnimationFrame(updateBracketPaneHeight);
     }
 
     function goToLanding() {
@@ -275,7 +324,6 @@
       if (!app) return;
 
       const mergedMatches = context && context.mergedMatches ? context.mergedMatches : [];
-      const snapshot = context && context.snapshot ? context.snapshot : null;
 
       if (!mergedMatches.length) {
         renderEmptyState("No knockout schedule found.");
@@ -322,7 +370,7 @@
 
       if (lastUpdatedText) {
         lastUpdatedText.textContent =
-          `Last Updated: ${R32Utils.formatUpdatedAtEdt(snapshot && snapshot.updatedAtUtc)}`;
+          `Last Updated: ${R32Utils.formatUpdatedAtEdt(context && context.fetchedAtClientUtc)}`;
       }
     }
 
