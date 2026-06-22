@@ -162,14 +162,22 @@
       requestAnimationFrame(updateBracketPaneHeight);
     }
 
-    function syncBracketWindowFromScroll() {
-      const scrollEl = getBracketScrollEl();
-      if (!scrollEl) return;
+	function syncBracketWindowFromScroll() {
+	  const scrollEl = getBracketScrollEl();
+	  if (!scrollEl) return;
 
-      const step = getBracketStepPx();
-      const computedIndex = Math.round(scrollEl.scrollLeft / step);
-      setBracketWindow(computedIndex);
-    }
+	  const step = getBracketStepPx();
+	  const computedIndex = Math.round(scrollEl.scrollLeft / step);
+
+	  if (computedIndex !== currentBracketWindow) {
+		setBracketWindow(computedIndex);
+
+		window.scrollTo({
+		  top: 0,
+		  behavior: "smooth"
+		});
+	  }
+	}
 
     function updateBracketNavButtons() {
       const scrollEl = getBracketScrollEl();
