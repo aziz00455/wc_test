@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WC 2026 - R32 Auto List</title>
+  <link rel="stylesheet" href="../WC_common/styles.css">
+
+<style>
+  .page-wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  .autolist-error {
+    display: none;
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    border: 1px solid #e5bcbc;
+    background: #fff4f4;
+    color: #b42318;
+    border-radius: 8px;
+    white-space: pre-wrap;
+    font-size: 14px;
+  }
+
+  .autolist-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .autolist-panel {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .autolist-table-wrap {
+    overflow-x: hidden;
+  }
+
+  /* ===== FORCE OVERRIDE (balanced) ===== */
+  .page-wrap .autolist-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+  }
+
+  .page-wrap .autolist-table th,
+  .page-wrap .autolist-table td {
+    padding: 6px 10px !important;  /* restored padding */
+    border-bottom: 1px solid #eee;
+    text-align: left;
+    vertical-align: middle;
+    font-size: 14px;
+    box-sizing: border-box;
+  }
+
+  .page-wrap .autolist-table th {
+    background: #fafafa;
+    font-weight: 700;
+  }
+
+  /* Pick column (slightly wider for readability) */
+  .page-wrap .autolist-table .pick-col {
+    width: 56px !important;
+    min-width: 56px !important;
+    max-width: 56px !important;
+    white-space: nowrap;
+  }
+
+  /* Team column (~75% width) */
+  .page-wrap .autolist-table .team-col {
+    width: 75% !important;
+    max-width: 75% !important;
+  }
+
+  .page-wrap .autolist-table .team-select {
+    display: block;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 6px 8px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background: #fff;
+    font-size: 14px;
+    line-height: 1.2;
+    height: 34px;
+    box-sizing: border-box;
+  }
+
+  @media (max-width: 900px) {
+    .page-wrap {
+      max-width: 100%;
+      padding: 10px;
+    }
+
+    .autolist-grid {
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    /* Slightly adjust for mobile balance */
+    .page-wrap .autolist-table .pick-col {
+      width: 52px !important;
+      min-width: 52px !important;
+      max-width: 52px !important;
+    }
+
+    .page-wrap .autolist-table .team-col {
+      width: 75% !important;
+      max-width: 75% !important;
+    }
+
+    .page-wrap .autolist-table th,
+    .page-wrap .autolist-table td {
+      padding: 6px 10px !important;
+    }
+
+    .page-wrap .autolist-table .team-select {
+      font-size: 13px;
+    }
+  }
+</style>
+</head>
+
+<body>
+<div id="topbar"></div>
+
+<div class="page-wrap">
+  <div id="errorBox" class="autolist-error"></div>
+
+  <div class="autolist-grid">
+    <div class="autolist-panel">
+      <div class="autolist-table-wrap">
+        <table class="autolist-table">
+          <thead>
+            <tr>
+              <th class="pick-col">Pick</th>
+              <th class="team-col">Team</th>
+            </tr>
+          </thead>
+          <tbody id="tableLeftBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="autolist-panel">
+      <div class="autolist-table-wrap">
+        <table class="autolist-table">
+          <thead>
+            <tr>
+              <th class="pick-col">Pick</th>
+              <th class="team-col">Team</th>
+            </tr>
+          </thead>
+          <tbody id="tableRightBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.global = window;
+window.process = window.process || { env: {} };
+</script>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="firebase.js"></script>
+
+<!-- shared -->
+<script src="../WC_common/utils.js"></script>
+<script src="../WC_common/matches.js"></script>
+<script src="../WC_common/teams.js"></script>
+
+<script>
+const SESSION_KEY = "session_" + GAME_ID;
+const userId = localStorage.getItem(SESSION_KEY);
+if (!userId) window.location.href = "index.html";
+
+renderTopbar(
+  "Round 32 Team Preselection",
+  `
+    <button onclick="saveAutoList()">Save</button>
+    <button onclick="logout()">Logout</button>
+  `
+);
+
+const IDLE_LIMIT_MS = 20 * 60 * 1000; // 20 min
+const MAPPING_DOC = db.collection("R32mapping").doc("main");
+
+let lastActivityServerMs = null;
+let serverTimeBusy = false;
+
+async function markActivity() {
+  if (serverTimeBusy) return;
+  serverTimeBusy = true;
+  try {
+    lastActivityServerMs = await fetchServerTime(db);
+  } catch (err) {
+    console.error("markActivity error:", err);
+  } finally {
+    serverTimeBusy = false;
+  }
+}
+
+["click", "mousemove", "keydown", "scroll"].forEach(evt => {
+  document.addEventListener(evt, () => {
+    markActivity();
+  }, { passive: true });
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    markActivity();
+  }
+});
+
+const state = {
+  teamMaster: [],   // all 48 teams, original idx preserved
+  activeTeams: [],  // non-eliminated only
+  order: []         // array of original idx values, active teams only
+};
+
+function showError(msg) {
+  const box = document.getElementById("errorBox");
+  box.style.display = "block";
+  box.textContent = msg;
+}
+
+function hideError() {
+  const box = document.getElementById("errorBox");
+  box.style.display = "none";
+  box.textContent = "";
+}
+
+function buildTeamMaster() {
+  const src = window.teams || {};
+
+  return Object.entries(src)
+    .map(([teamName, info]) => ({
+      teamName,
+      rank: Number(info && info.rank != null ? info.rank : 999999)
+    }))
+    .sort((a, b) => {
+      if (a.rank !== b.rank) return a.rank - b.rank;
+      return a.teamName.localeCompare(b.teamName);
+    })
+    .map((item, idx) => ({
+      idx, // original fixed index across all 48 teams
+      teamName: item.teamName,
+      rank: item.rank
+    }));
+}
+
+async function buildActiveTeams() {
+  const snap = await MAPPING_DOC.get();
+  if (!snap.exists) {
+    throw new Error("R32mapping/main not found");
+  }
+
+  const data = snap.data() || {};
+  const placementByTeam = new Map();
+
+  Object.entries(data).forEach(([teamName, row]) => {
+    if (row && typeof row === "object") {
+      placementByTeam.set(teamName, row.placement || null);
+    }
+  });
+
+  return state.teamMaster.filter(team => placementByTeam.get(team.teamName) !== "ELIMINATED");
+}
+
+function getDefaultOrder() {
+  return state.activeTeams.map(t => t.idx);
+}
+
+function isValidOrder(arr) {
+  if (!Array.isArray(arr)) return false;
+  if (arr.length !== state.activeTeams.length) return false;
+
+  const activeIdxSet = new Set(state.activeTeams.map(t => t.idx));
+  const seen = new Set(arr);
+
+  if (seen.size !== state.activeTeams.length) return false;
+
+  for (const idx of arr) {
+    if (!activeIdxSet.has(idx)) return false;
+  }
+
+  return true;
+}
+
+function migrateOrder(rawOrder) {
+  const activeIdxSet = new Set(state.activeTeams.map(t => t.idx));
+  const defaultOrder = getDefaultOrder();
+
+  // keep only valid active teams, preserve old order
+  const filtered = [];
+  if (Array.isArray(rawOrder)) {
+    rawOrder.forEach(idx => {
+      const n = Number(idx);
+      if (activeIdxSet.has(n) && !filtered.includes(n)) {
+        filtered.push(n);
+      }
+    });
+  }
+
+  // append any missing active teams in FIFA-rank order
+  defaultOrder.forEach(idx => {
+    if (!filtered.includes(idx)) filtered.push(idx);
+  });
+
+  return filtered;
+}
+
+async function ensureUserOrder() {
+  const ref = db.collection("users").doc(userId);
+  const snap = await ref.get();
+  const data = snap.exists ? (snap.data() || {}) : {};
+
+  const nextOrder = migrateOrder(data.R32_teams);
+
+  if (isValidOrder(nextOrder)) {
+    // save back only if changed or invalid previously
+    const same =
+      Array.isArray(data.R32_teams) &&
+      data.R32_teams.length === nextOrder.length &&
+      data.R32_teams.every((v, i) => Number(v) === Number(nextOrder[i]));
+
+    if (!same) {
+      await ref.set({ R32_teams: nextOrder }, { merge: true });
+    }
+    return nextOrder.slice();
+  }
+
+  const defaultOrder = getDefaultOrder();
+  await ref.set({ R32_teams: defaultOrder }, { merge: true });
+  return defaultOrder.slice();
+}
+
+function buildOptionsHtml(selectedValue) {
+  let html = "";
+
+  state.activeTeams.forEach(team => {
+    const selected = String(team.idx) === String(selectedValue) ? "selected" : "";
+    html += `<option value="${team.idx}" ${selected}>${team.teamName} (${team.rank})</option>`;
+  });
+
+  return html;
+}
+
+function renderTableRows(bodyId, startIndex, endIndex) {
+  const tbody = document.getElementById(bodyId);
+  tbody.innerHTML = "";
+
+  for (let i = startIndex; i <= endIndex; i++) {
+    if (i >= state.order.length) break;
+
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td class="pick-col">Pick ${i + 1}</td>
+      <td class="team-col">
+        <select class="team-select" data-pick-index="${i}">
+          ${buildOptionsHtml(state.order[i])}
+        </select>
+      </td>
+    `;
+
+    tbody.appendChild(tr);
+  }
+}
+
+function renderTables() {
+  const total = state.order.length;
+  const leftCount = Math.ceil(total / 2);
+  const rightStart = leftCount;
+
+  renderTableRows("tableLeftBody", 0, leftCount - 1);
+  renderTableRows("tableRightBody", rightStart, total - 1);
+
+  bindSelectEvents();
+}
+
+function moveTeamWithPushDown(fromIndex, toIndex) {
+  if (fromIndex === toIndex) return;
+  const moved = state.order.splice(fromIndex, 1)[0];
+  state.order.splice(toIndex, 0, moved);
+}
+
+function bindSelectEvents() {
+  const selects = Array.from(document.querySelectorAll(".team-select"));
+
+  selects.forEach(sel => {
+    sel.addEventListener("change", function () {
+      const pickIndex = Number(this.dataset.pickIndex);
+      const newVal = Number(this.value);
+
+      if (Number.isNaN(newVal)) {
+        renderTables();
+        return;
+      }
+
+      const currentIndex = state.order.findIndex(val => val === newVal);
+      if (currentIndex === -1) {
+        renderTables();
+        return;
+      }
+
+      moveTeamWithPushDown(currentIndex, pickIndex);
+      renderTables();
+      markActivity();
+    });
+  });
+}
+
+async function saveAutoList() {
+  try {
+    hideError();
+
+    if (!isValidOrder(state.order)) {
+      showError("Invalid team order. Each active team must appear exactly once.");
+      return;
+    }
+
+    await db.collection("users").doc(userId).set({
+      R32_teams: state.order.slice()
+    }, { merge: true });
+
+    window.location.href = "R32_mapping.html";
+  } catch (err) {
+    console.error("saveAutoList error:", err);
+    showError("Save failed:\n" + (err && err.message ? err.message : String(err)));
+  }
+}
+
+window.saveAutoList = saveAutoList;
+
+async function loadPage() {
+  try {
+    hideError();
+
+    state.teamMaster = buildTeamMaster();
+    if (state.teamMaster.length !== 48) {
+      throw new Error("Expected 48 teams from ../WC_common/teams.js, found " + state.teamMaster.length);
+    }
+
+    state.activeTeams = await buildActiveTeams();
+    if (!state.activeTeams.length) {
+      throw new Error("No active teams available for preselection.");
+    }
+
+    state.order = await ensureUserOrder();
+    renderTables();
+
+    await markActivity();
+  } catch (err) {
+    console.error("loadPage error:", err);
+    showError("Failed to load page:\n" + (err && err.message ? err.message : String(err)));
+  }
+}
+
+loadPage();
+
+// 20-minute idle timeout using DB/server time only
+setInterval(async () => {
+  try {
+    if (lastActivityServerMs == null) return;
+
+    const nowServerMs = await fetchServerTime(db);
+
+    if (nowServerMs - lastActivityServerMs > IDLE_LIMIT_MS) {
+      console.log("Idle timeout → logout");
+      localStorage.removeItem(SESSION_KEY);
+      window.location.href = "index.html";
+    }
+  } catch (err) {
+    console.error("idle timeout check error:", err);
+  }
+}, 60 * 1000);
+</script>
+
+</body>
+</html>
