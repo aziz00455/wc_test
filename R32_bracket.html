@@ -175,28 +175,25 @@
       requestAnimationFrame(updateBracketPaneHeight);
     }
 
-    function goToGroupStage() { window.location.href = "landing.html"; }
-	function goToR32Mapping () { window.location.href = "R32_mapping.html"; }
+    function goToLanding() { window.location.href = "landing.html"; }
     function logout() { localStorage.removeItem(SESSION_KEY); window.location.href = "index.html"; }
 
     function buildTopbar() {
       if (window.R32Utils && typeof R32Utils.renderTopbar === "function" && typeof R32Utils.makeButtonHtml === "function") {
         const actionsHtml = [
-          R32Utils.makeButtonHtml({ label: "Group Stage", onClick: "goToGroupStage()" }),
-		  R32Utils.makeButtonHtml({ label: "Team Mapping", onClick: "goToR32Mapping()" }),
+          R32Utils.makeButtonHtml({ label: "Leaderboard", onClick: "goToLanding()" }),
           R32Utils.makeButtonHtml({ label: "Logout", onClick: "logout()" })
         ].join("");
-        R32Utils.renderTopbar({ title: "Knockout Stage Bracket", actionsHtml });
+        R32Utils.renderTopbar({ title: "Knockout Bracket", actionsHtml });
         return;
       }
       const topbar = document.getElementById("topbar");
       if (!topbar) return;
       topbar.innerHTML = `
         <div class="r32-topbar-inner">
-          <div class="r32-topbar-title">Knockout Stage Bracket</div>
+          <div class="r32-topbar-title">Knockout Bracket</div>
           <div class="r32-topbar-actions">
-            <button class="r32-btn" onclick="goToGroupStage()">Group Stage</button>
-			<button class="r32-btn" onclick="goToR32Mapping()">Team Mapping</button>
+            <button class="r32-btn" onclick="goToLanding()">Leaderboard</button>
             <button class="r32-btn" onclick="logout()">Logout</button>
           </div>
         </div>`;
