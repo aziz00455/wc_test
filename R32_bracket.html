@@ -41,8 +41,7 @@
   <script src="../WC_common/R32_matchCards.js"></script>
 
   <script>
-    const R32_GAME_ID = "WC2026_DEV";
-    const SESSION_KEY = "session_" + R32_GAME_ID;
+    const SESSION_KEY = "session_" + GAME_ID;
     const userId = localStorage.getItem(SESSION_KEY);
     if (!userId) window.location.href = "index.html";
 
@@ -327,34 +326,51 @@
       return list;
     }
 
-    async function synchronizeBracketFromNewSchema(db, context) {
-      const mappingRef = db.collection(R32_MAPPING_COLLECTION).doc(R32_MAPPING_DOC_ID);
-      const liveRef = db.collection(LIVE_COLLECTION).doc(LIVE_BRACKET_DOC_ID);
+	async function synchronizeBracketFromNewSchema(db, context) {
+	  const mappingRef = db.collection(R32_MAPPING_COLLECTION).doc(R32_MAPPING_DOC_ID);
+	  const liveRef = db.collection(LIVE_COLLECTION).doc(LIVE_BRACKET_DOC_ID);
 
-      const [mappingSnap, liveSnap] = await Promise.all([
-        mappingRef.get(),
-        liveRef.get()
-      ]);
+	  const [mappingSnap, liveSnap] = await Promise.all([
+		mappingRef.get(),
+		liveRef.get()
+	  ]);
 
-      const mappingData = mappingSnap.exists ? (mappingSnap.data() || {}) : {};
-      const liveDocData = liveSnap.exists ? (liveSnap.data() || {}) : {};
+	  const mappingData = mappingSnap.exists ? (mappingSnap.data() || {}) : {};
+	  const liveDocData = liveSnap.exists ? (liveSnap.data() || {}) : {};
+	  const mergedMatches = context && Array.isArray(context.mergedMatches) ? context.mergedMatches : [];
 
-      const syncResult = fillLiveBracketTeamsFromMapping(liveDocData, mappingData);
-	  
-	// ✅ NEW: propagate winners
-	const winnerChanged = propagateWinners(syncResult.liveDocData.matches);
+	  // 1. Start from live doc, but seed any missing match shells from mergedMatches.
+	  const seedResult = seedLiveMatchesFromMergedMatches(liveDocData, mergedMatches);
 
-      if (syncResult.didChange || winnerChanged) {
-        await liveRef.set({
-          matches: syncResult.liveDocData.matches,
-          updatedAtUtc: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-      }
+	  // 2. Fill R32 teams from R32mapping placement -> team.
+	  const fillResult = fillLiveBracketTeamsFromMapping(seedResult.liveDocData, mappingData);
 
-      const nextContext = Object.assign({}, context || {});
-      nextContext.mergedMatches = applyLiveBracketTeamsToMergedMatches(context && context.mergedMatches, syncResult.liveDocData);
-      return nextContext;
-    }
+	  // 3. Propagate winners repeatedly so later rounds update in the same load.
+	  const winnerChanged = propagateWinnersUntilStable(fillResult.liveDocData.matches);
+
+	  const didChange =
+		seedResult.didChange ||
+		fillResult.didChange ||
+		winnerChanged;
+
+	  if (didChange) {
+		await liveRef.set({
+		  matches: fillResult.liveDocData.matches,
+		  updatedAtUtc: firebase.firestore.FieldValue.serverTimestamp()
+		}, { merge: true });
+	  }
+
+	  // 4. IMPORTANT:
+	  // Render from context.mergedMatches, not window.R32matches.
+	  // context.mergedMatches contains score/status/winner data from R32_fetchScores.
+	  const nextContext = Object.assign({}, context || {});
+	  nextContext.mergedMatches = applyLiveBracketTeamsToMergedMatches(
+		mergedMatches,
+		fillResult.liveDocData
+	  );
+
+	  return nextContext;
+	}
 
     function renderBracket(context) {
       const app = document.getElementById("bracketApp");

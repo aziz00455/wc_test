@@ -503,37 +503,53 @@
         });
       }
 
-      async function ensureUsers(teamMaster) {
-        const usersSnap = await db.collection('users').get();
-        const users = [];
-        const updates = [];
-        const defaultOrder = defaultR32Order(teamMaster);
+	async function ensureUsers(teamMaster) {
+	  const usersSnap = await db.collection('users').get();
+	  const users = [];
+	  const updates = [];
+	  const defaultOrder = defaultR32Order(teamMaster);
 
-        usersSnap.forEach(doc => {
-          const data = doc.data() || {};
-          const normalized = {
-            ...data,
-            picks: normalizePicksArray(data.picks),
-            R32_teams: isValidR32Order(data.R32_teams, teamMaster.length) ? data.R32_teams.slice() : defaultOrder.slice(),
-            seed: normalizeSeedArray(data.seed, 6),
-            assignMode: normalizeModeArray(data.assignMode, 6),
-            tieSeed: Number.isInteger(data.tieSeed) ? data.tieSeed : null
-          };
+	  usersSnap.forEach(doc => {
+		const data = doc.data() || {};
 
-          users.push({ id: doc.id, data: normalized });
+		const hasValidR32 =
+		  Array.isArray(data.R32_teams) &&
+		  isValidR32Order(data.R32_teams, teamMaster.length);
 
-          const patch = {};
-          if (!isValidR32Order(data.R32_teams, teamMaster.length)) patch.R32_teams = normalized.R32_teams;
-          if (!Array.isArray(data.seed) || data.seed.length !== 6) patch.seed = normalized.seed;
-          if (!Array.isArray(data.assignMode) || data.assignMode.length !== 6) patch.assignMode = normalized.assignMode;
-          if (Object.keys(patch).length) {
-            updates.push(db.collection('users').doc(doc.id).set(patch, { merge: true }));
-          }
-        });
+		const normalized = {
+		  ...data,
+		  picks: normalizePicksArray(data.picks),
+		  R32_teams: hasValidR32 ? data.R32_teams.slice() : defaultOrder.slice(),
+		  seed: normalizeSeedArray(data.seed, 6),
+		  assignMode: normalizeModeArray(data.assignMode, 6),
+		  tieSeed: Number.isInteger(data.tieSeed) ? data.tieSeed : null
+		};
 
-        if (updates.length) await Promise.all(updates);
-        return users;
-      }
+		users.push({ id: doc.id, data: normalized });
+
+		const patch = {};
+		if (!Array.isArray(data.seed) || data.seed.length !== 6) {
+		  patch.seed = normalized.seed;
+		}
+		if (!Array.isArray(data.assignMode) || data.assignMode.length !== 6) {
+		  patch.assignMode = normalized.assignMode;
+		}
+
+		// IMPORTANT:
+		// Do NOT auto-write fallback R32_teams from this page.
+		// If a user's saved preselection is partial / older schema / temporarily invalid,
+		// we still allow local fallback for rendering, but we do not overwrite Firestore here.
+
+		if (Object.keys(patch).length) {
+		  updates.push(
+			db.collection('users').doc(doc.id).set(patch, { merge: true })
+		  );
+		}
+	  });
+
+	  if (updates.length) await Promise.all(updates);
+	  return users;
+	}
 
       async function buildRankedPlayers(teamMaster, finalizeRankSeed) {
         const users = await ensureUsers(teamMaster);
